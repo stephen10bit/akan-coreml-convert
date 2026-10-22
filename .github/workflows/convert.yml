@@ -6,7 +6,7 @@ on:
 jobs:
   convert:
     runs-on: macos-14
-    timeout-minutes: 120
+    timeout-minutes: 180
     steps:
       - uses: actions/setup-python@v5
         with:
@@ -18,18 +18,40 @@ jobs:
           cd whisperkittools
           pip install -e .
 
-      - name: Convert the model
+      - name: Show where the code uses mps
         run: |
           cd whisperkittools
-          whisperkit-generate-model \
-            --model-version GiftMark/akan-whisper-model \
-            --output-dir "$GITHUB_WORKSPACE/out"
+          grep -rn "mps" tests scripts whisperkit | head -30 || true
+
+      - name: Convert the model (CPU only, MPS switched off)
+        run: |
+          cd whisperkittools
+          python - <<'PY'
+          import os, sys
+          import torch
+          # The cloud Mac has no usable GPU memory, so hide MPS from the tool.
+          torch.backends.mps.is_available = lambda: False
+          torch.backends.mps.is_built = lambda: False
+          sys.argv = [
+              "whisperkit-generate-model",
+              "--model-version", "GiftMark/akan-whisper-model",
+              "--output-dir", os.environ["GITHUB_WORKSPACE"] + "/out",
+          ]
+          from scripts.generate_model import cli
+          cli()
+          PY
+
+      - name: Check the model parts exist
+        run: |
+          ls -R "$GITHUB_WORKSPACE/out" | head -60
+          test -d "$GITHUB_WORKSPACE/out/GiftMark_akan-whisper-model/AudioEncoder.mlmodelc"
+          test -d "$GITHUB_WORKSPACE/out/GiftMark_akan-whisper-model/TextDecoder.mlmodelc"
 
       - name: Zip the result
         run: |
           cd "$GITHUB_WORKSPACE"
-          ls -R out | head -50
           zip -r akan-coreml.zip out
+          ls -lh akan-coreml.zip
 
       - uses: actions/upload-artifact@v4
         with:
