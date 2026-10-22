@@ -23,8 +23,7 @@ jobs:
           cd whisperkittools
           whisperkit-generate-model \
             --model-version GiftMark/akan-whisper-model \
-            --output-dir "$GITHUB_WORKSPACE/out" \
-            --disable-default-tests
+            --output-dir "$GITHUB_WORKSPACE/out"
 
       - name: Zip the result
         run: |
